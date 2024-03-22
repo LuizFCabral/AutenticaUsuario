@@ -1,43 +1,28 @@
 from flask import Flask, render_template, request
 import json
-from cryptography.fernet import Fernet
 
-app = Flask(__name__)
+from model.usuario import Usuario
 
-#funções para lidar com o usuário
-
-
-#criptografia da senha
-
-
-def criptografar(senha):
-    chave_cripto = Fernet.generate_key()
-    fernet = Fernet(chave_cripto)
-    return {"senha_cripto": fernet.encrypt(senha.encode()).decode(), "chave": chave_cripto.decode()}
-
-def descriptografar(senha, chave):
-    fernet = Fernet(chave)
-    return fernet.decrypt(senha.encode()).decode()
-
-def verificar_usuario(email, senha):
-    #se caso desejo fazer só a verificação do email
-    if(senha==""):
+def verificar_usuario(objUser, tipo):
+    # se caso desejo fazer só a verificação do email
+    if (tipo == "cad"):
         with open('usuarios.json', 'r') as arquivo:
             for linha in arquivo:
                 usuario = json.loads(linha)
-                if usuario['email'] == email:
+                if usuario['email'] == objUser.email:
                     return True
         return False
-    #verifica o usuário completamente
+    # verifica o usuário completamente
     else:
         with open('usuarios.json', 'r') as arquivo:
             for linha in arquivo:
                 usuario = json.loads(linha)
-                if (usuario['email'] == email) and (descriptografar(usuario['senha']['senha_cripto'], usuario['senha']['chave']) == senha):
+                if (usuario['email'] == objUser.email) and (objUser.descriptografar(usuario['senha']['senha_cripto'], usuario['senha']['chave']) == objUser.senha):
                     return True
         return False
 
-#---------------------------------------------------------------------------------
+
+app = Flask(__name__)
 
 @app.route("/")
 def login():
@@ -50,33 +35,29 @@ def cadastro():
 
 @app.route("/logar", methods=['POST'])
 def logar():
-    email = request.form['email']
-    senha = request.form['senha']
+    objUser = Usuario("", request.form['email'], request.form['senha'])
 
-    if verificar_usuario(email, senha):
+    if verificar_usuario(objUser, "login"):
         return "Usuário Cadastrado!"
     else:
         return render_template("login.html", mensagem_erro="Usuário não cadastrado!")
 
 @app.route("/cadastrar", methods=['POST'])
 def cadastrar():
-    nome = request.form['nome']
-    email = request.form['email']
-    senha = request.form['senha']
+    objUser = Usuario(request.form['nome'], request.form['email'], request.form['senha'])
 
     #verifica se o usuário já está cadastrado
-    if verificar_usuario(email, ""):
+    if verificar_usuario(objUser, "cad"):
         return render_template('cadastrar.html', mensagem_erro='Este e-mail já está cadastrado.')
     else:
         #caso o usuário não esteja cadastrado
-        usuario = {
-            "nome": nome,
-            "email": email,
-            "senha": criptografar(senha)
-
-        }
-
         with open('usuarios.json', 'a') as arquivo:
+            usuario = {
+                "nome": objUser.nome,
+                "email": objUser.email,
+                "senha": objUser.criptografar(objUser.senha)
+
+            }
             json.dump(usuario, arquivo)
             arquivo.write('\n')
 
